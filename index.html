@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마찌의 목표 수익률 계산기</title>
+    
+    <!-- React 및 Tailwind CSS 라이브러리 불러오기 (CDN) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        @font-face {
+            font-family: 'LeeSeoyun';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2202-2@1.0/LeeSeoyun.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+        body, input, button, textarea { 
+            font-family: 'LeeSeoyun', sans-serif !important; 
+            letter-spacing: 0.05em;
+        }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        /* 스크롤바 숨기기 (모바일 뷰어용) */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-[#F9F9F9] selection:bg-[#FFD93D]">
+    
+    <!-- 리액트 앱이 그려질 공간 -->
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 만원 단위의 숫자를 한국어 금액 표기(억, 만원)로 변환하는 유틸리티 함수
+        const formatKRW = (manwon) => {
+          if (!manwon || isNaN(manwon) || manwon === 0) return "0원";
+          const uk = Math.floor(manwon / 10000);
+          const rest = manwon % 10000;
+          let res = "";
+          if (uk > 0) res += `${uk}억 `;
+          if (rest > 0) res += `${rest}만`;
+          return res.trim() + "원";
+        };
+
+        // 숫자에 콤마를 찍어주는 함수
+        const formatNumber = (num) => {
+          if (num === '' || num === null || num === undefined) return '';
+          return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        };
+
+        // 공통으로 사용되는 카드 UI 컨테이너
+        const Card = ({ children, className = "" }) => (
+          <div className={`bg-white border-4 border-black rounded-3xl p-6 shadow-[8px_8px_0px_rgba(0,0,0,1)] ${className}`}>
+            {children}
+          </div>
+        );
+
+        // 공통 버튼 UI
+        const Button = ({ onClick, children, color = "bg-[#FF6B6B]", className = "" }) => (
+          <button 
+            onClick={onClick}
+            className={`w-full py-4 text-2xl font-bold text-black border-4 border-black rounded-2xl shadow-[4px_4px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-[0px_0px_0px_rgba(0,0,0,1)] transition-all ${color} ${className}`}
+          >
+            {children}
+          </button>
+        );
+
+        function App() {
+          const [step, setStep] = useState(0);
+          const [userName, setUserName] = useState('');
+          const [targets, setTargets] = useState([
+            { id: 1, name: '뷰 좋은 상급지 아파트', amount: 200000, icon: '🏢' },
+            { id: 2, name: '나만의 드림카', amount: 10000, icon: '🚗' },
+            { id: 3, name: '배당용 노후자금', amount: 290000, icon: '💰' },
+          ]);
+          const [yearlySaving, setYearlySaving] = useState(2000); // 연 2000만원
+          const [years, setYears] = useState(30); // 30년
+
+          const totalTarget = targets.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+          const totalSaved = (Number(yearlySaving) || 0) * (Number(years) || 0);
+          const multiplier = totalSaved > 0 ? (totalTarget / totalSaved) : 0;
+          const requiredRate = years > 0 ? (36 * multiplier / years) : 0;
+
+          const updateTarget = (id, field, value) => {
+            setTargets(targets.map(t => t.id === id ? { ...t, [field]: value } : t));
+          };
+
+          const addTarget = () => {
+            const newId = targets.length > 0 ? Math.max(...targets.map(t => t.id)) + 1 : 1;
+            setTargets([...targets, { id: newId, name: '새로운 목표', amount: 5000, icon: '✨' }]);
+          };
+
+          const removeTarget = (id) => {
+            setTargets(targets.filter(t => t.id !== id));
+          };
+
+          const renderStep0 = () => (
+            <div className="flex flex-col items-center space-y-8 animate-fade-in text-center mt-10">
+              <div className="text-6xl animate-bounce">🤔</div>
+              <h1 className="text-5xl font-black leading-tight text-gray-800">
+                돈 모을 때 가장<br/>먼저 해야할 게 뭘까?
+              </h1>
+              <Card className="w-full bg-[#FFE4E1]">
+                <p className="font-bold text-2xl mb-2">좋은 주식 찾기? 악착같이 아끼기?</p>
+                <p className="text-4xl font-black text-[#FF6B6B]">다 틀렸어! 🙅‍♀️</p>
+                <p className="mt-4 text-gray-700 font-medium text-xl leading-relaxed">
+                  가장 먼저 <br/><span className="font-bold text-black text-3xl">"나는 얼마를 모을 것인가!"</span> 를<br/>생각해봐야해.<br/><br/>
+                  목표가 없으면<br/>금방 지쳐버리거든!
+                </p>
+              </Card>
+              <div className="w-full">
+                <label className="block text-left font-bold mb-2 ml-2 text-xl">너의 이름(별명)을 알려줘!</label>
+                <input 
+                  type="text" 
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="예: 마찌"
+                  className="w-full border-4 border-black rounded-2xl p-4 text-2xl font-bold focus:outline-none focus:ring-4 focus:ring-yellow-300"
+                />
+              </div>
+              <Button onClick={() => userName.trim() ? setStep(1) : alert('이름을 입력해줘!')} color="bg-[#4ECDC4]">
+                내 목표 계산하러 가기 🚀
+              </Button>
+            </div>
+          );
+
+          const renderStep1 = () => (
+            <div className="flex flex-col items-center space-y-6 animate-fade-in w-full pb-10">
+              <div className="text-center">
+                <div className="text-5xl mb-2">🎯</div>
+                <h2 className="text-4xl font-black text-gray-800">1. 목표액 정하기</h2>
+                <p className="text-gray-600 font-medium mt-2 text-xl">
+                  {userName}님이 은퇴할 때까지<br/>이루고 싶은 것을 모두 적어봐!
+                </p>
+              </div>
+
+              <div className="w-full space-y-4">
+                {targets.map((target) => (
+                  <Card key={target.id} className="p-4 bg-[#FFF4E0] flex flex-col space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-4xl">{target.icon}</span>
+                      <input 
+                        type="text" 
+                        value={target.name}
+                        onChange={(e) => updateTarget(target.id, 'name', e.target.value)}
+                        className="flex-1 bg-transparent border-b-2 border-black font-bold text-2xl focus:outline-none"
+                      />
+                      <button onClick={() => removeTarget(target.id)} className="text-red-500 font-bold px-2 text-3xl hover:scale-110">×</button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <input 
+                        type="text" 
+                        inputMode="numeric"
+                        value={target.amount === '' ? '' : formatNumber(target.amount)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          updateTarget(target.id, 'amount', val === '' ? '' : Number(val));
+                        }}
+                        className="w-2/3 bg-white border-2 border-black rounded-lg p-2 font-bold text-right text-2xl"
+                        placeholder="0"
+                      />
+                      <span className="font-bold text-2xl">만원</span>
+                    </div>
+                    <div className="text-right text-xl font-bold text-gray-500">
+                      = {formatKRW(target.amount)}
+                    </div>
+                  </Card>
+                ))}
+                <button onClick={addTarget} className="w-full py-4 border-4 border-dashed border-gray-400 rounded-2xl font-bold text-gray-500 hover:bg-gray-100 transition-colors text-xl">
+                  + 목표 추가하기
+                </button>
+              </div>
+
+              <Card className="w-full bg-[#E0FFFF] text-center border-black">
+                <p className="font-bold text-gray-600 text-xl">나의 총 목표액은?</p>
+                <p className="text-5xl font-black text-blue-600 mt-2">{formatKRW(totalTarget)}</p>
+              </Card>
+
+              <Button onClick={() => setStep(2)} color="bg-[#FFD93D]">
+                다음 단계로 👉
+              </Button>
+            </div>
+          );
+
+          const renderStep2 = () => (
+            <div className="flex flex-col items-center space-y-6 animate-fade-in w-full pb-10">
+              <div className="text-center">
+                <div className="text-5xl mb-2">🐖</div>
+                <h2 className="text-4xl font-black text-gray-800">2. 저축액 파악하기</h2>
+                <p className="text-gray-600 font-medium mt-2 text-xl">
+                  은퇴 전까지 내가 얼마나<br/>저축할 수 있는지 계산해보자!
+                </p>
+              </div>
+
+              <Card className="w-full bg-[#F3E8FF] space-y-6">
+                <div>
+                  <label className="block font-bold mb-2 text-xl">💰 1년에 얼마를 모을까?</label>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      value={yearlySaving === '' ? '' : formatNumber(yearlySaving)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setYearlySaving(val === '' ? '' : Number(val));
+                      }}
+                      className="flex-1 bg-white border-2 border-black rounded-xl p-3 font-bold text-right text-3xl"
+                      placeholder="0"
+                    />
+                    <span className="font-bold text-2xl">만원</span>
+                  </div>
+                  <p className="text-right text-lg font-bold text-purple-600 mt-2">{formatKRW(yearlySaving)}</p>
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-2 text-xl">⏳ 은퇴까지 남은 기간은?</label>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="text" 
+                      inputMode="numeric"
+                      value={years === '' ? '' : formatNumber(years)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setYears(val === '' ? '' : Number(val));
+                      }}
+                      className="flex-1 bg-white border-2 border-black rounded-xl p-3 font-bold text-right text-3xl"
+                      placeholder="0"
+                    />
+                    <span className="font-bold text-2xl">년</span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="w-full bg-[#E0FFFF] text-center border-black">
+                <p className="font-bold text-gray-600 text-xl">순수하게 저축할 수 있는 돈</p>
+                <p className="text-4xl font-black mt-2">{formatKRW(yearlySaving)} × {years}년 =</p>
+                <p className="text-6xl font-black text-blue-600 mt-3">{formatKRW(totalSaved)}</p>
+              </Card>
+
+              <Button onClick={() => setStep(3)} color="bg-[#FFD93D]">
+                목표 수익률 계산하기 🥁
+              </Button>
+            </div>
+          );
+
+          const renderStep3 = () => (
+            <div className="flex flex-col items-center space-y-6 animate-fade-in w-full pb-10">
+              <div className="text-center">
+                <div className="text-5xl mb-2">🧮</div>
+                <h2 className="text-4xl font-black text-gray-800">3. 36의 법칙 적용하기</h2>
+                <p className="text-gray-600 font-medium mt-2 text-xl">
+                  모을 수 있는 돈을 목표액으로 만들려면<br/>얼마의 수익률이 필요할까?
+                </p>
+              </div>
+
+              <Card className="w-full bg-[#FFF0F5] space-y-4">
+                <h3 className="font-black text-3xl text-center border-b-2 border-black pb-2">✨ 36의 법칙 공식</h3>
+                <p className="text-center font-bold text-2xl bg-white border-2 border-black rounded-lg py-3">
+                  36 × n(배수) ÷ 기간 = <span className="text-red-500">연 수익률</span>
+                </p>
+              </Card>
+
+              <div className="w-full space-y-4">
+                <div className="flex justify-between items-center bg-gray-100 p-4 border-2 border-black rounded-2xl">
+                  <span className="font-bold text-xl">내 원금</span>
+                  <span className="font-black text-2xl">{formatKRW(totalSaved)}</span>
+                </div>
+                <div className="text-center text-4xl font-black text-gray-400">↓</div>
+                <div className="flex justify-between items-center bg-yellow-100 p-4 border-2 border-black rounded-2xl">
+                  <span className="font-bold text-xl">목표 금액</span>
+                  <span className="font-black text-2xl">{formatKRW(totalTarget)}</span>
+                </div>
+              </div>
+
+              <Card className="w-full bg-[#E0FFFF] text-center border-black">
+                <p className="font-bold text-gray-700 text-2xl mb-2">원금을 약 <span className="text-4xl font-black text-blue-600">{multiplier.toFixed(1)}배</span> 불려야 해!</p>
+                <p className="text-gray-500 font-medium mb-4 text-xl">계산식: 36 × {multiplier.toFixed(1)} ÷ {years}년</p>
+                <p className="text-3xl font-bold">필요한 연 평균 수익률은?</p>
+                <div className="text-7xl font-black text-[#FF6B6B] mt-4 animate-bounce">
+                  {requiredRate.toFixed(1)}%
+                </div>
+              </Card>
+
+              <Button onClick={() => setStep(4)} color="bg-[#4ECDC4]">
+                내 결과 포스터 확인하기 🎉
+              </Button>
+            </div>
+          );
+
+          const renderStep4 = () => (
+            <div className="flex flex-col items-center animate-fade-in w-full pb-10 space-y-6">
+              
+              {/* 공유용 포스터 영역 */}
+              <div className="w-full bg-[#1A1A1A] p-2 rounded-[2rem] shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[radial-gradient(circle_at_center,_white_2px,_transparent_2px)] bg-[length:20px_20px]"></div>
+                
+                <div className="bg-[#FFF4E0] border-4 border-black rounded-3xl p-6 relative z-10 flex flex-col h-full">
+                  <div className="text-center mb-6 border-b-4 border-black pb-4">
+                    <h1 className="text-5xl font-black text-gray-800 tracking-tighter leading-tight">
+                      {userName}의<br/>
+                      <span className="text-[#FF6B6B] text-6xl">목표 수익률</span> 선언!
+                    </h1>
+                  </div>
+
+                  <div className="space-y-4 flex-1">
+                    <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_rgba(0,0,0,1)] flex justify-between items-center">
+                      <span className="font-bold text-gray-600 text-xl">🎯 내 목표 총액</span>
+                      <span className="font-black text-3xl text-blue-600">{formatKRW(totalTarget)}</span>
+                    </div>
+                    
+                    <div className="bg-white border-2 border-black rounded-xl p-4 shadow-[4px_4px_0px_rgba(0,0,0,1)] flex justify-between items-center">
+                      <span className="font-bold text-gray-600 text-xl">🐖 {years}년 예상 원금</span>
+                      <span className="font-black text-3xl">{formatKRW(totalSaved)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-center py-2">
+                      <span className="bg-black text-white px-5 py-2 rounded-full font-bold text-xl">
+                        내 원금을 {multiplier.toFixed(1)}배로! 🚀
+                      </span>
+                    </div>
+
+                    <div className="bg-[#FFE4E1] border-4 border-black rounded-2xl p-6 shadow-[4px_4px_0px_rgba(0,0,0,1)] text-center mt-4">
+                      <p className="font-bold text-gray-800 mb-2 text-2xl">달성해야 할 연 목표 수익률</p>
+                      <p className="text-8xl font-black text-[#FF6B6B] tracking-tighter">
+                        {requiredRate.toFixed(1)}<span className="text-5xl">%</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 text-center text-xl font-bold text-gray-500">
+                    @목표수익률_계산기_마찌
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full bg-yellow-100 border-2 border-yellow-400 p-4 rounded-xl text-center font-bold text-yellow-800 mb-4 text-xl">
+                📸 스크린샷을 찍어서 인스타에 공유해보세요!
+              </div>
+              
+              <div className="flex w-full space-x-3">
+                <Button onClick={() => setStep(0)} color="bg-gray-200" className="!w-1/3 text-xl">
+                  다시하기
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const el = document.getElementById('copy-msg');
+                    el.classList.remove('hidden');
+                    setTimeout(() => el.classList.add('hidden'), 2000);
+                  }} 
+                  color="bg-[#4ECDC4]" 
+                  className="!w-2/3 text-2xl"
+                >
+                  목표 다짐하기 💪
+                </Button>
+              </div>
+              <div id="copy-msg" className="hidden text-[#FF6B6B] font-bold animate-pulse text-xl text-center mt-2">
+                목표를 향해 화이팅! 댓글에 마찌를 남겨줘!
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="text-gray-900 p-4 font-['LeeSeoyun'] max-w-md mx-auto w-full pt-6">
+              {step > 0 && step < 4 && (
+                <div className="w-full bg-gray-200 h-4 rounded-full mb-8 border-2 border-black overflow-hidden">
+                  <div 
+                    className="bg-[#4ECDC4] h-full transition-all duration-500 ease-out"
+                    style={{ width: `${(step / 3) * 100}%` }}
+                  ></div>
+                </div>
+              )}
+              {step === 0 && renderStep0()}
+              {step === 1 && renderStep1()}
+              {step === 2 && renderStep2()}
+              {step === 3 && renderStep3()}
+              {step === 4 && renderStep4()}
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
